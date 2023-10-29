@@ -1,0 +1,9 @@
+package templates
+
+templ ResourceGroupList(rgNames []string) {
+	for _, rg := range rgNames {
+		<option value={ rg }>
+			{ rg }
+		</option>
+	}
+}

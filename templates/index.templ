@@ -1,0 +1,75 @@
+package templates
+
+templ Index() {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<script src="https://unpkg.com/htmx.org@1.9.6" integrity="sha384-FhXw7b6AlE/jyjlZH5iHa/tTe9EpJ1Y55RjcgPbjeWMskSxZt1v9qkxLJWNJaGni" crossorigin="anonymous"></script>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Azure Resources Viewer</title>
+			<style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #top-bar {
+            padding: 10px;
+            background-color: #0078d4;
+            color: white;
+        }
+        #main-content {
+            display: flex;
+            height: calc(100vh - 40px);
+        }
+        #resources-list {
+            width: 25%;
+            overflow-y: scroll;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+        }
+        #json-display {
+            flex: 1;
+            padding: 10px;
+            overflow-y: scroll;
+        }
+    </style>
+		</head>
+		<body>
+			<div id="top-bar">
+				<label for="resourceGroupSelect">Resource Group:</label>
+				<select id="resourceGroupSelect" onfocus="populateResourceGroups()" hx-get="/resource/ListByResourceGroup" hx-vals="js:{groupName: getRgValue()}" hx-trigger="change" hx-target="#resources-list">
+					<option value="test" disabled selected>Select a group</option>
+					<!-- The other options will be populated dynamically -->
+				</select>
+			</div>
+			<div id="main-content">
+				<div id="resources-list">
+					<!-- This should be populated based on the selected resource group -->
+				</div>
+				<pre id="json-display">
+					<!-- JSON representation of the selected resource will be displayed here -->
+				</pre>
+			</div>
+			<script>
+                let isResourceGroupsPopulated = false;
+
+                function populateResourceGroups() {
+                    if (!isResourceGroupsPopulated) {
+                        // Make an asynchronous call to your backend to get the HTML list of resource groups
+                        fetch("/resourceGroup/List")
+                        .then(response => response.text())
+                        .then(html => {
+                            const dropdown = document.getElementById('resourceGroupSelect');
+                            dropdown.innerHTML = html; // Replace contents of the dropdown with the fetched HTML
+                            isResourceGroupsPopulated = true;
+                        });
+                    }
+                }
+
+                function getRgValue() {
+                    return document.getElementById('resourceGroupSelect').value;
+                }
+            </script>
+		</body>
+	</html>
+}

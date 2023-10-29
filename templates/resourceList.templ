@@ -1,0 +1,15 @@
+package templates
+
+import (
+	"net/url"
+	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+)
+
+templ ResourceList(resources []*armresources.GenericResourceExpanded) {
+	<ul>
+		for _, res := range resources {
+			<li href="#" hx-get={ fmt.Sprintf("/resource/GetByResourceId?id=%s", url.PathEscape(*res.ID)) } hx-trigger="click" hx-swap="innerHTML" hx-target="#json-display" style="cursor: pointer;">{ *res.Name } - { *res.Type }</li>
+		}
+	</ul>
+}

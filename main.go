@@ -1,15 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/profile/p20200901/resourcemanager/resources/armsubscriptions"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"strings"
+	"log"
+	"net/http"
+	"net/url"
+
+	"github.com/DrBushytop/AzJsonator/templates"
+	"github.com/a-h/templ"
 )
 
 func main() {
@@ -18,104 +17,72 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	rgs, err := azClient.GetResourceGroups()
-	if err != nil {
-		fmt.Println(err)
-	}
-	for _, rg := range rgs[:3] { // TODO: remove [:1] to get all resource groups
-		rgJson, _ := json.MarshalIndent(rg, "", "  ")
-		fmt.Printf("RG:\n%s\n", rgJson)
 
-		resources, err := azClient.GetResourcesInResourceGroup(*rg.Name)
+	component := templates.Index()
+	// component.Render(context.Background(), os.Stdout)
+	http.Handle("/", templ.Handler(component))
+	http.HandleFunc("/resourceGroup/List", resourceGroupListHander(azClient))
+	http.HandleFunc("/resource/ListByResourceGroup", resourceListHandler(azClient))
+	http.HandleFunc("/resource/GetByResourceId", resourceByIdHanlder(azClient))
+	fmt.Println("Listening on http://localhost:3000")
+	http.ListenAndServe(":3000", nil)
+
+	// fmt.Println(azClient.GetLatestApiVersion("Microsoft.Network", "virtualNetworks"))
+
+	// fmt.Println(azClient.GetSubresourceTypes("Microsoft.Network", "virtualNetworks"))
+
+	// fmt.Println(azClient.GetResourceByResourceId("/subscriptions//resourceGroups/tfstate-dwf/providers/Microsoft.Network/virtualNetworks/hub"))
+}
+
+func resourceGroupListHander(c *AzClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rgs, err := c.GetResourceGroupNames()
+		if err != nil {
+			log.Println(err)
+			w.Write([]byte(fmt.Sprintf("<option value='error'>%s</option>", err)))
+		}
+		template := templates.ResourceGroupList(rgs)
+		template.Render(r.Context(), w)
+	}
+}
+
+func resourceListHandler(c *AzClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		resourceGroup := queryParams.Get("groupName")
+		resources, err := c.GetResourcesInResourceGroup(resourceGroup)
+		if err != nil {
+			log.Println(err)
+			w.Write([]byte(fmt.Sprintf("<ul><li>%s</li></ul>", err)))
+		}
+		template := templates.ResourceList(resources)
+		template.Render(r.Context(), w)
+	}
+}
+
+func resourceByIdHanlder(c *AzClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		resourceId := queryParams.Get("id")
+
+		unescapedResourceId, err := url.QueryUnescape(resourceId)
+		if err != nil {
+			log.Println(err)
+			w.Write([]byte(fmt.Sprintf("Unable to parse resourceId: %s", err)))
+		}
+
+		resource, err := c.GetResourceByResourceId(unescapedResourceId)
+		if err != nil {
+			log.Println(err)
+			w.Write([]byte(fmt.Sprintf("Unable to get resource: %s", err)))
+		}
+
+		jsonString, err := json.MarshalIndent(resource, "", "  ")
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		for _, res := range resources {
-			resJson, _ := json.MarshalIndent(res, "", "  ")
-			fmt.Printf("Resource:\n%s\n", resJson)
-		}
+		template := templates.ResourceJson(string(jsonString))
+		template.Render(r.Context(), w)
 	}
-}
-
-type AzClient struct {
-	Credential            *azidentity.ChainedTokenCredential
-	SubscriptionsClient   *armsubscriptions.SubscriptionClient
-	ResourceGroupsClient  *armresources.ResourceGroupsClient
-	ResourceClient        *armresources.Client
-	CurrentSubscriptionID string
-}
-
-func NewAzClient(subId string) (*AzClient, error) {
-	azCLI, err := azidentity.NewAzureCLICredential(nil)
-	if err != nil {
-		// TODO: handle error
-	}
-
-	credential, err := azidentity.NewChainedTokenCredential(
-		[]azcore.TokenCredential{
-			azCLI,
-		}, nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	rgClient, err := armresources.NewResourceGroupsClient(subId, credential, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resClient, err := armresources.NewClient(subId, credential, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AzClient{
-		Credential:            credential,
-		ResourceClient:        resClient,
-		ResourceGroupsClient:  rgClient,
-		CurrentSubscriptionID: "",
-	}, nil
-}
-
-func (c *AzClient) GetResourceGroups() ([]*armresources.ResourceGroup, error) {
-	rgs := c.ResourceGroupsClient.NewListPager(nil)
-	var resourceGroups []*armresources.ResourceGroup
-	for rgs.More() {
-		page, err := rgs.NextPage(context.Background())
-		if err != nil {
-			break
-		}
-		resourceGroups = append(resourceGroups, page.Value...)
-	}
-	return resourceGroups, nil
-}
-
-func (c *AzClient) GetResourcesInResourceGroup(resourceGroupName string) ([]*armresources.GenericResourceExpanded, error) {
-	resources := c.ResourceClient.NewListPager(&armresources.ClientListOptions{
-		Filter: to.Ptr("resourceGroup eq '" + resourceGroupName + "'"),
-	})
-	var resourcesList []*armresources.GenericResourceExpanded
-	for resources.More() {
-		page, err := resources.NextPage(context.Background())
-		if err != nil {
-			break
-		}
-		resourcesList = append(resourcesList, page.Value...)
-	}
-	return resourcesList, nil
-}
-
-func (c AzClient) GetResourceByResourceId(resourceId string) (*armresources.GenericResource, error) {
-	// split resource type from resource id
-	resourceType := strings.Split(resourceId, "/")[6]
-
-	// get latest api version for resource type
-
-	resource, err := c.ResourceClient.GetByID(context.Background(), resourceId, apiVersion)
-	if err != nil {
-		return nil, err
-	}
-	return &resource.GenericResource, nil
 }
