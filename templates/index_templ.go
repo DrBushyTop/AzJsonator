@@ -49,6 +49,22 @@ func Index() templ.Component {
         body {
             font-family: Arial, sans-serif;
         }
+        ul, ol {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+                /* Direct children ` + "`" + `li` + "`" + ` elements will not have indentation */
+            ul > li, ol > li {
+            padding-left: 0; /* No indentation for top-level list items */
+        }
+
+        /* ` + "`" + `li` + "`" + ` elements that have nested lists will get indentation */
+        ul li ul, ul li ol,
+        ol li ul, ol li ol {
+            padding-left: 20px; /* Adjust the value to get the desired indentation */
+            list-style-type: none; /* This can be omitted if the parent style has already removed the list-style-type */
+        }
         #top-bar {
             padding: 10px;
             background-color: #0078d4;

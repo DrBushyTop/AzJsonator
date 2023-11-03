@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -23,6 +25,7 @@ func NewAzClient(subId string) (*AzClient, error) {
 	azCLI, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
 		// TODO: handle error
+		return nil, err
 	}
 
 	credential, err := azidentity.NewChainedTokenCredential(
@@ -45,6 +48,9 @@ func NewAzClient(subId string) (*AzClient, error) {
 	}
 
 	provClient, err := armresources.NewProvidersClient(subId, credential, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return &AzClient{
 		credential:            credential,
@@ -134,6 +140,62 @@ func (c *AzClient) GetLatestApiVersion(resourceProvider string, resourceType str
 	return "", fmt.Errorf("no resource type %s found for provider %s", resourceType, resourceProvider)
 }
 
+func (c *AzClient) GetSubresourcesByResourceId(resourceId string) []*armresources.GenericResourceExpanded {
+	// split resource type from resource id
+	resourceTypeIndex := 7
+	split := strings.Split(resourceId, "/")
+	resourceProvider := split[6]
+	resourceType := split[resourceTypeIndex]
+
+	// Get subresource type
+	for len(split) > resourceTypeIndex+2 {
+		resourceTypeIndex = resourceTypeIndex + 2
+		resourceType = resourceType + "/" + split[resourceTypeIndex]
+	}
+
+	// Get all resource types
+	subResourceTypes, err := c.GetSubresourceTypes(resourceProvider, resourceType)
+	if err != nil {
+		log.Printf("Unable to get subresource types for %s: %s", resourceType, err)
+		return nil
+	}
+
+	type result struct {
+		subResources []*armresources.GenericResourceExpanded
+		err          error
+	}
+
+	// Get all resources of subresource type
+	var resources []*armresources.GenericResourceExpanded
+	results := make(chan result)
+	var wg sync.WaitGroup // Use WaitGroup to wait for all goroutines to finish
+
+	for _, subResourceType := range subResourceTypes {
+		wg.Add(1) // Increment the WaitGroup counter
+		go func(srType string) {
+			defer wg.Done() // Decrement the counter when the goroutine completes
+			srList, err := c.GetAllSubresourcesWithSpecificParent(resourceId, srType)
+			results <- result{srList, err}
+		}(subResourceType)
+	}
+
+	// Start a goroutine to close the results channel once all goroutines are done
+	go func() {
+		wg.Wait()      // Wait for all goroutines to finish
+		close(results) // Close the channel so the loop below can terminate
+	}()
+
+	for r := range results {
+		if r.err != nil {
+			log.Printf("Error: %s", r.err)
+			continue // If there's an error, skip this set of subresources
+		}
+		resources = append(resources, r.subResources...)
+	}
+
+	return resources
+}
+
 func (c *AzClient) GetSubresourceTypes(resourceProvider string, resourceType string) ([]string, error) {
 	provider, err := c.providersClient.Get(context.Background(), resourceProvider, nil)
 	if err != nil {
@@ -149,9 +211,24 @@ func (c *AzClient) GetSubresourceTypes(resourceProvider string, resourceType str
 		res = append(res, *rt.ResourceType)
 	}
 
-	if len(res) == 0 {
-		return nil, fmt.Errorf("no subresource types found for resource type %s/%s", resourceProvider, resourceType)
-	}
-
 	return res, nil
+}
+
+func (c *AzClient) GetAllSubresourcesWithSpecificParent(parent string, resourceType string) ([]*armresources.GenericResourceExpanded, error) {
+	split := strings.Split(parent, "/")
+	resourceGroup := split[4]
+	// provider := split[6]
+
+	resources := c.resourceClient.NewListByResourceGroupPager(resourceGroup, &armresources.ClientListByResourceGroupOptions{
+		// Filter: to.Ptr("resourceType eq '" + provider + "/" + resourceType + "'"),
+	})
+	var resourcesList []*armresources.GenericResourceExpanded
+	for resources.More() {
+		page, err := resources.NextPage(context.Background())
+		if err != nil {
+			break
+		}
+		resourcesList = append(resourcesList, page.Value...)
+	}
+	return resourcesList, nil
 }

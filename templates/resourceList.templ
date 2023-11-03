@@ -8,8 +8,30 @@ import (
 
 templ ResourceList(resources []*armresources.GenericResourceExpanded) {
 	<ul>
-		for _, res := range resources {
-			<li href="#" hx-get={ fmt.Sprintf("/resource/GetByResourceId?id=%s", url.PathEscape(*res.ID)) } hx-trigger="click" hx-swap="innerHTML" hx-target="#json-display" style="cursor: pointer;">{ *res.Name } - { *res.Type }</li>
+		for i, res := range resources {
+			<li>
+				<img id="loading" src="/assets/bars.svg" class="htmx-indicator"/>
+				<span
+ 					hx-get={ fmt.Sprintf("/resource/GetSubresourcesById?id=%s", url.PathEscape(*res.ID)) }
+ 					hx-trigger="click"
+ 					hx-target="next ul"
+ 					hx-swap="outerHTML"
+ 					hx-indicator="previous .htmx-indicator"
+ 					style="cursor: pointer;"
+				>
+					[+]
+				</span>
+				<span
+ 					hx-get={ fmt.Sprintf("/resource/GetByResourceId?id=%s", url.PathEscape(*res.ID)) }
+ 					hx-trigger="click"
+ 					hx-swap="innerHTML"
+ 					hx-target="#json-display"
+ 					style="cursor: pointer;"
+				>
+					{ *res.Name } - { *res.Type }
+				</span>
+				<ul id={ fmt.Sprintf("subresources-%d-%s", i, *res.Location) } style="margin-left: 20px;"></ul>
+			</li>
 		}
 	</ul>
 }
