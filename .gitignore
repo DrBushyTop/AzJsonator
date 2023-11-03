@@ -23,3 +23,6 @@ go.work
 
 # Templ
 templates/*_templ.go
+
+# Azurite
+__azurite*
