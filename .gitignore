@@ -22,4 +22,4 @@ go.work
 
 
 # Templ
-templates/*._templ.go
+templates/*_templ.go
