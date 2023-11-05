@@ -12,27 +12,20 @@ import (
 )
 
 func main() {
-	// Create a new AzClient
 	azClient, err := NewAzClient("")
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Println(azClient.GetSubresourceTypes("Microsoft.Web", "sites"))
 
 	component := templates.Index()
-	// component.Render(context.Background(), os.Stdout)
 	http.Handle("/", templ.Handler(component))
-	http.HandleFunc("/resourceGroup/List", resourceGroupListHander(azClient))
-	http.HandleFunc("/resource/ListByResourceGroup", resourceListHandler(azClient))
-	http.HandleFunc("/resource/GetByResourceId", resourceByIdHandler(azClient))
-	http.HandleFunc("/resource/GetSubresourcesById", subResourcesHandler(azClient))
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+	http.HandleFunc("/resource-groups/list", resourceGroupListHander(azClient))
+	http.HandleFunc("/resources/list-by-resource-group", resourceListHandler(azClient))
+	http.HandleFunc("/resources/get-by-resource-id", resourceByIdHandler(azClient))
+	http.HandleFunc("/resources/get-subresources-by-id", subResourcesHandler(azClient))
 	fmt.Println("Listening on http://localhost:3000")
-	http.ListenAndServe(":3000", nil)
-
-	// fmt.Println(azClient.GetLatestApiVersion("Microsoft.Network", "virtualNetworks"))
-
-	// fmt.Println(azClient.GetResourceByResourceId("/subscriptions//resourceGroups/tfstate-dwf/providers/Microsoft.Network/virtualNetworks/hub"))
+	http.ListenAndServe("localhost:3000", nil)
 }
 
 func resourceGroupListHander(c *AzClient) http.HandlerFunc {

@@ -7,12 +7,30 @@ import (
 )
 
 templ ResourceList(resources []*armresources.GenericResourceExpanded) {
+	<style>
+    ul, ol {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+                /* Direct children `li` elements will not have indentation */
+            ul > li, ol > li {
+            padding-left: 0; /* No indentation for top-level list items */
+        }
+
+        /* `li` elements that have nested lists will get indentation */
+        ul li ul, ul li ol,
+        ol li ul, ol li ol {
+            padding-left: 20px; /* Adjust the value to get the desired indentation */
+            list-style-type: none; /* This can be omitted if the parent style has already removed the list-style-type */
+        }
+    </style>
 	<ul>
 		for i, res := range resources {
 			<li>
 				<img id="loading" src="/assets/bars.svg" class="htmx-indicator"/>
 				<span
- 					hx-get={ fmt.Sprintf("/resource/GetSubresourcesById?id=%s", url.PathEscape(*res.ID)) }
+ 					hx-get={ fmt.Sprintf("/resources/get-subresources-by-id?id=%s", url.PathEscape(*res.ID)) }
  					hx-trigger="click"
  					hx-target="next ul"
  					hx-swap="outerHTML"
@@ -22,9 +40,9 @@ templ ResourceList(resources []*armresources.GenericResourceExpanded) {
 					[+]
 				</span>
 				<span
- 					hx-get={ fmt.Sprintf("/resource/GetByResourceId?id=%s", url.PathEscape(*res.ID)) }
+ 					hx-get={ fmt.Sprintf("/resources/get-by-resource-id?id=%s", url.PathEscape(*res.ID)) }
  					hx-trigger="click"
- 					hx-swap="innerHTML"
+ 					hx-swap="innerHTML transition:true"
  					hx-target="#json-display"
  					style="cursor: pointer;"
 				>

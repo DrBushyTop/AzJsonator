@@ -9,59 +9,43 @@ templ Index() {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>Azure Resources Viewer</title>
 			<style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        ul, ol {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-        }
-                /* Direct children `li` elements will not have indentation */
-            ul > li, ol > li {
-            padding-left: 0; /* No indentation for top-level list items */
-        }
-
-        /* `li` elements that have nested lists will get indentation */
-        ul li ul, ul li ol,
-        ol li ul, ol li ol {
-            padding-left: 20px; /* Adjust the value to get the desired indentation */
-            list-style-type: none; /* This can be omitted if the parent style has already removed the list-style-type */
-        }
-        #top-bar {
-            padding: 10px;
-            background-color: #0078d4;
-            color: white;
-        }
-        #main-content {
-            display: flex;
-            height: calc(100vh - 40px);
-        }
-        #resources-list {
-            width: 25%;
-            overflow-y: scroll;
-            border-right: 1px solid #ccc;
-            padding: 10px;
-        }
-        #json-display {
-            flex: 1;
-            padding: 10px;
-            overflow-y: scroll;
-        }
-    </style>
+                body {
+                    font-family: Arial, sans-serif;
+                }
+                #top-bar {
+                    padding: 10px;
+                    background-color: #0078d4;
+                    color: white;
+                }
+                #main-content {
+                    display: flex;
+                    height: calc(100vh - 40px);
+                }
+                #resources-list {
+                    width: 25%;
+                    overflow-y: scroll;
+                    border-right: 1px solid #ccc;
+                    padding: 10px;
+                }
+                #json-display {
+                    flex: 1;
+                    padding: 10px;
+                    overflow-y: scroll;
+                }
+            </style>
 		</head>
 		<body>
-			<div id="top-bar">
+			<div id="top-bar" hx-trigger="load" hx-get="/resource-groups/list" hx-target="#placeholderrg" hx-swap="afterend">
 				<label for="resourceGroupSelect">Resource Group:</label>
 				<select
  					id="resourceGroupSelect"
- 					onfocus="populateResourceGroups()"
- 					hx-get="/resource/ListByResourceGroup"
- 					hx-vals="js:{groupName: getRgValue()}"
  					hx-trigger="change"
+ 					hx-get="/resources/list-by-resource-group"
+ 					hx-vals="js:{groupName: getRgValue()}"
  					hx-target="#resources-list"
+ 					hx-swap="innerHTML"
 				>
-					<option value="test" disabled selected>Select a group</option>
+					<option id="placeholderrg" value="placeholder" disabled selected>Select a group</option>
 					<!-- The other options will be populated dynamically -->
 				</select>
 			</div>
@@ -69,26 +53,11 @@ templ Index() {
 				<div id="resources-list">
 					<!-- This should be populated based on the selected resource group -->
 				</div>
-				<pre id="json-display">
+				<div id="json-display">
 					<!-- JSON representation of the selected resource will be displayed here -->
-				</pre>
+				</div>
 			</div>
 			<script>
-                let isResourceGroupsPopulated = false;
-
-                function populateResourceGroups() {
-                    if (!isResourceGroupsPopulated) {
-                        // Make an asynchronous call to your backend to get the HTML list of resource groups
-                        fetch("/resourceGroup/List")
-                        .then(response => response.text())
-                        .then(html => {
-                            const dropdown = document.getElementById('resourceGroupSelect');
-                            dropdown.innerHTML = html; // Replace contents of the dropdown with the fetched HTML
-                            isResourceGroupsPopulated = true;
-                        });
-                    }
-                }
-
                 function getRgValue() {
                     return document.getElementById('resourceGroupSelect').value;
                 }
